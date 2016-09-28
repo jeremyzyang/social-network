@@ -1,0 +1,1520 @@
+\documentclass[11pt]{article}
+
+\usepackage[pdftex]{graphicx}
+\usepackage[skip=0pt]{caption}
+\usepackage{subcaption}
+\setlength{\abovecaptionskip}{5pt plus 3pt minus 2pt} 
+
+\usepackage{authblk}
+\usepackage{verbatim}
+\usepackage[T1]{fontenc}
+%\usepackage[utf8]{inputenc}
+\usepackage[utf8x]{inputenc} 
+\usepackage[pdftex]{graphicx}
+\usepackage{hologo}
+\usepackage{textcomp}
+\usepackage{hanging}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+
+\usepackage{tikz}
+
+\newcommand{\argmax}{\operatornamewithlimits{argmax}}
+
+\setlength\parindent{0pt}
+
+
+\begin{document}
+
+\title{Identification and Bias-Amplification: \\ Latent Space Approach to Contagion on Observational Social Networks}
+\author{Jeremy Z. Yang \thanks{Email: zheny@mit.edu}}
+\affil{Sloan School of Management, MIT\\}
+\date{May 2015}
+\maketitle
+
+%\hologo{LaTeX}'d on 
+%how to write a dagger: \textsuperscript{\textdagger}
+
+\begin{abstract}
+In the social networks, ego behavior is usually a function of, in addition to her own characteristics, the behaviors of her alter's. However, such contagion or peer effect is hard to identify empirically using observational networks due to the endogeneity in tie formation, especially when the endogeneity is operated through some unobserved traits of the agents (Shalizi \& Thomas, 2011). The latent space models have been proposed under the assumption of assortative mixing as a method of modeling the underlying tie generating process (Hoff et al., 2002, 2005), and it also has been used to adjust for unobserved homophily when drawing causal inference on networks (Davin et al., 2014). At the meantime, a different thread of research in causal inference has suggested that in a linear system, under certain conditions, adjusting for one common cause of treatment and outcome might increase the net bias by amplifying the bias introduced by an unadjusted confounder (Pearl, 2009, 2010). The first part of the paper is on identification: I demonstrate the rationale behind using latent space in distinguishing the casual effect of social contagion and then fit the model to a classic dataset on the diffusion of medical innovation (Coleman et al., 1957, 1966; Burt, 1987). The second part is on bias-amplification: I extend Pearl's framework to a nonlinear system and then use simulation to demonstrate that latent space adjustment can sometimes amplify the net bias, thus it should be used with extra caution. 
+\end{abstract}
+
+
+
+\section{Introduction}
+
+Network is essentially a nonparametric representation of the interdependence among agents of interest. It's one of the most fundamental conceptualizations of the data structures behind various natural and social phenomena.  \\
+
+When the behaviors of social agents are the primary outcome of interest, I'd like to think networks as meta-structures in which individual level decision-making processes are embedded and interacted. In the observational social networks, we can often observe the correlation or co-evolution of behaviors among agents that are connected with one another, however, the cause of such phenomena cannot be simply attributed to social contagion alone due to the presence of various potential confounders. Among them, exposure to common external causes and assortative mixing are the most salient ones. \\
+
+Exposure to common external causes means that the reason why agent behave similarly is mainly because of an external cause that is completely exogenous. As Max Weber famously wrote: “If at the beginning of a shower a number of people on the street put up their umbrellas at the same time, this would not ordinarily be a case of action mutually oriented to that of each other, but rather of all reacting the same way to the like need of protection from the rain”.\\ 
+
+Assortative mixing simply means the homophilous selection in tie formation, or to put it in another way: birds of a feather flock together. Homophily can be furthered divided into three categories based on the covariates that the mixing process is operating through. For manifest homophily, the selection is on the outcome of interest which is usually the behaviors of agents, the tendency to behave in a certain way is the \emph{reason}, rather than the consequence that ties are formed among a group of agents; secondary homophily means the selection is on the observed characteristics of agents which are also predictive of the behaviors; latent homophily means the selection is on unobservables that are predictive of the behaviors (Shalizi \& Thomas, 2011). Note that assortative mixing per se can be on any characteristics of agents, it doesn't have to be the ones that are predictive of the outcome, but \emph{only} homophilous selection on the ones that are predictive of the outcome have potentials to confound the causal identification of social contagion.\\
+
+These confounders raised two distinct types of difficulties in the causal inference. On one hand, the external causes and homophilous selections on the tendency to behave or observed characteristics of agents require researchers to develop theory and techniques to collect information on variables (as many as possible) that are considered to be relevant (the tendency to behavior is not usually collected from agents directly, rather, it's computed through observed covariates like propensity scores). One the other hand, the homophilous selection on latent characteristics of agents requires researchers to either develop proxy and factors based on observed information or simply give up and turn to experiment for faithful inference.\\  
+
+In this paper, I will focus on the second difficulty and demonstrate a way of using the connectivity information in the social networks to estimate a set of coordinates an agent occupies in a latent social space (Hoff et al., 2002, 2005) and then use them as proxies for homophilous selection on unobserved traits in the estimation of contagion effect (Davin et al., 2014) on a classic dataset first used by Coleman et al. (1957, 1966) and then reorganized by Burt (1987) for the diffusion of new drugs prescription among physicians. Then built upon the framework proposed by Pearl (2009, 2010), I will use simulation to further illustrate whether it's always a good idea to adjust for unobserved traits using latent space in causal inference on social networks.\\
+
+\section{Methods}
+The general purpose of statistical inference is to recover the underlying data generating process and interpret the key parameters of interest based on the observed data. \\
+
+In the statistical modeling of social networks, typically, we'll treat ties, and ultimately the global configuration of the network --- which is an aggregate of all local ties --- as random variables that are determined by an unobserved stochastic process operating among a fixed number of agents. What we observe is typically a sociomatrix (or adjacency matrix, which can be derived uniquely from the common graphical representation for a given network with a single type of relation), which captures the connectivity structure among agents, and sometimes a data frame for the node or edge level covariates associated with an agent or a dyad. What we'll estimate is a discrete probability mass distribution over all possible configurations of network with the same size (number of nodes) and the significance and magnitude of key parameters in the stochastic tie generating process. Formally, a network model is a mapping from an adjacency matrix to a probability measure, it can be defined as:\\
+$$A \mapsto \Pr; A\in \{{0,1\}^n}^ {2}, \Pr \in [0,1], \sum_{A} \Pr=1$$
+where $n \in \mathbb{N}$ is the size of the network. In this section I will first describe exponential random graph modes (ERGMs) as a popular way of modeling the tie formation and then latent space models as a generalization and extension of ERGMs.\\
+
+\subsection{Exponential Random Graph Models (ERGMs)}
+Essentially, ERGMs are a set of parameterization that specify the function that relates an adjacency matrix to a probability measure. The parameterization is a function in the exponential family hence the name ERGMs. Formally, for a network with fixed size $n$ and $m$ node level predictors under isomorphic assumption:
+
+
+$$\Pr(G=g|X,\theta) = \exp\{ \theta_r^\intercal 
+\begin{pmatrix} f(X)\\s(g) \end{pmatrix} + \phi(X,\theta)\}, $$
+$$r \in \mathbb{N}, \theta,X \in \mathbb{R}^{n \times m}, g \in {\{0,1\}^n}^{2},$$
+$$f: \mathbb{R}^{n\times m} \mapsto \mathbb{R}^m, s: {\{0,1\}^n}^{2} \mapsto 
+\mathbb{N}^{r-m},$$
+
+where $G$ is a random variable for the global configuration of the network, $g$ is any specific network that is in the sample space of $G$, $\theta$ is a column vector of length $r$ where $r$ is the total number of predictors/effects on right hand side (RHS) of the equation, $X$ is a $n \times m$ matrix for node level covariates, $f(\cdot)$ is a summary statistics for covariates and $s(\cdot)$ is a summary statistics for the count of sub-graph configurations (edges, k-stars, triangles, etc.), the isomorphic assumption imposes a restriction on the parameters by equating them when they refer to the same type of effect (Frank \& Strauss, 1986). Finally, $\phi$ is a normalizing factor to make sure $Pr$ sums to 1 over sample space. It's easy to see that: 
+ 
+
+$$\sum_{g \in G} \Pr (G=g|X,\theta)=1,$$
+$$\sum_{g \in G}  \exp\{ \theta_r^\intercal 
+\begin{pmatrix} f(X)\\s(g) \end{pmatrix} + \phi(X,\theta)\}=1,$$
+
+since $\phi$ is not a function of $g$, we can take it out of the summation,
+
+$$\sum_{g \in G} \exp\{ \theta_r^\intercal 
+\begin{pmatrix} f(X)\\s(g) \end{pmatrix}\} \cdot \exp\{\phi(X,\theta\} = 1,$$ 
+$$\phi(X,\theta) = - \log[\sum_{g \in G}  \exp\{ \theta_r^\intercal 
+\begin{pmatrix} f(X)\\s(g) \end{pmatrix}\}]. $$
+
+In the model, $X$ and one specific realization of $G$, $g^*$ is observed, function $f(\cdot)$ and $s(\cdot)$ need to be chosen by the researcher, guided by theories of tie formation process. For instance $f(\cdot)$ could be the sum of all the value of a covariate on the network, or a function captures the distance between the value of covariates for a dyad. Typically, under the Markovian assumption (which means the ties are formed independently if they don't share a common node), $s(\cdot)$ is chosen as a counting function of edges, k-stars, and triangles. It's been shown that Markovian assumption can be relaxed by adding new predictors such as alternating k-triangles to fit networks with more complicated dependency structure (Snijders et al., 2004; Robins et al., 2007). And the $\theta$ vector will be estimated from the model given $X$,$g^*$,$f(\cdot)$ and $s(\cdot)$.\\
+
+The maximum likelihood estimator of $\theta$ is:
+$${\hat{\theta}}_{mle} = \argmax_\theta [\log(\Pr(G=g^*|X,\theta))]=\argmax_\theta[\theta_r^\intercal 
+\begin{pmatrix} f(X)\\s(g) \end{pmatrix} + \phi(X,\theta)],$$
+if we take partial derivatives with respect to $\theta$, all the randomness is in $g$, the maximization problem is equivalent to solving:
+$$\mathbb{E}(s(g))=\sum_{g \in G}  \Pr(G=g|X,\theta)\cdot s(g) = s(g^*).$$
+
+The estimation requires a sum over all possible configurations in $G$, which is nontrivial even when $n$ is moderate size, it's easy to see that $|G|=2^{\frac{n(n-1)}{2}}$ for undirected graph and $|G|=2^{n(n-1)}$ for directed graph. It's almost impossible to get an analytic solution under a reasonable amount of time. Therefore, some numerical methods have been suggested to approximate the solution by iterative updates, among which Markov Chain Monte Carlo (MCMC) is the most widely used (Snijders, 2002). Alternatively, we can take a Bayesian approach: specify priors for all the parameters and then update them based on the observed data and report the posterior mean or median as the estimated value(Krivitsky \& Handcock, 2008).\\
+
+The interpretation of $\theta$ is fairly intuitive under the Markovian assumption, consider a random pair $i, j$ chosen from the node set of $G$, the odds that $i$ and $j$ is connected can be simply derived from the general model:
+
+\begin{align*}
+\text{odds}[\Pr(g_{ij}=1|X,\theta)]&=\frac{\Pr(g_{ij}=1|X,\theta)}{\Pr(g_{ij}=0|X,\theta)} \\ 
+&= \frac{\exp\{ \theta_r^\intercal \begin{pmatrix} f(X)\\s(g_1) \end{pmatrix} + \phi(X,\theta)\}}{\exp\{ \theta_r^\intercal \begin{pmatrix} f(X)\\s(g_2) \end{pmatrix} + \phi(X,\theta)\}}\\
+&=\exp\{\theta_{r-m}^\intercal\cdot(s(g_1)-s(g_2)\},\\
+\text{logit}[\Pr(g_{ij}=1|X,\theta)] &= \log[\frac{\Pr(g_{ij}=1|X,\theta)}{1-\Pr(g_{ij}=1|X,\theta)}]=\theta_{r-m}^\intercal\cdot\Delta s(g),
+\end{align*}
+
+
+where $g_1$ is the configuration of the network when $i, j$ is connected given the rest of the network, $g_2$ is the configuration of the network when $i, j$ is not connected given the rest of the network, $\Delta s(g)$ is the change statistics, it captures the count change in subgraph structures (edges, k-stars, triangles) when the graph is changed from $g_2$ to $g_1$, this is a key parameter because it represents the dependency between ties that share a common node. Also note that the length of $\theta$ is reduced from $r$ to $r-m$, only the effects that are functions of network structure are remained in the RHS, the terms that are inmutated under graph change canceled each other out. 
+
+\subsection{Latent Space Models}
+ERGMs is a very flexible way of modeling the tie generating process, and the network effects (subgraph configurations) and covariates have fairly straightforward explanations, however, it has a few problems in modeling some real life social networks. For instance, under Markovian assumption, model degeneracy (extreme low likelihood value of the observed network even when it's maximized) might happen due to very poor fit, the problem can be remedied by adding more general network effects (Snijders et al., 2004; Robins et al., 2007), however, those new effects are introduced with severely compromised interpretability.\\
+
+Latent space models (Hoff et al., 2002) takes a more intuitive approach to the tie formation process by introducing the concept of social space, which refers to a space of unobserved latent characteristics that each agent occupies. The ties in the network are assumed to be conditionally independent given these positions (and other observables such as node level covariates). Usually, the latent space model assumes assortatative mixing, which means the probability of ties are proportional to the \emph{inverse} of the distance between agents in the social space. \\
+
+Under the model assumption, we can think of the tie generating process for a whole graph as $n(n-1)$ times of independent tosses (for directed graph) of a biased coin, where before each toss, the bias of the coin is computed by a function of the covariates and latent position of the pair of agents being evaluated. To follow the ERGM notation, the model can be summarized nonparametrically as the following:
+
+$$\Pr(G=g|X,\theta,Z) = \prod_{i \not= j} \Pr(G_{ij}|x_i,x_j,z_i,z_j,\theta),$$
+$$i, j \in n,Z \in \mathbb{R}^{n\times d},$$
+where $x_i, x_j$ are vectors of covariates for agent $i,j$ and $z_i, z_j$ is unobserved latent positions of agent $i,j$, which along with $\theta$, will be estimated from the model. $d$ is the dimension of the latent social space. A convenient way to parameterize it is to use logistic regression:
+
+$$\text{logit}[g_{ij}=1|x_i,x_j,z_i,z_j,\theta]=\theta^\intercal \cdot \begin{pmatrix}
+1\\x_i\\x_j \end{pmatrix} + |z_i - z_j|.$$ 
+
+Therefore the likelihood function of the whole graph is:
+
+\begin{align*}
+\text{L}(\theta,Z|X,G=g)&=\Pr(G=g|X,\theta,Z) \\
+&= \prod_{i,j,i\not=j}\Pr(g_{ij}=1|x_i,x_j,z_i,z_j,\theta)^{I(g_{ij}=1)} \cdot\\ 
+&\prod_{i,j,i\not=j}[1-Pr(g_{ij}=1|x_i,x_j,z_i,z_j,\theta)]^{1-I(g_{ij}=1)},
+\end{align*}
+
+
+where $I$ is an indicator function that returns 1 if the argument is true and 0 if false. The likelihood function will be maximized numerically under the constrain that the latent space coordinates $Z$ satisfies the triangle inequality, 
+
+$${\hat{(\theta,Z)}}_{mle} = \argmax_{\theta,Z} [\log(\Pr(G=g^*|X,\theta,Z))]=$$
+
+$$\argmax_{\theta,Z}\{
+\sum_{i,j,i\not=j} \log [\Pr(g_{ij}=1|x_i,x_j,z_i,z_j,\theta)^{I(g_{ij}=1)}] + $$
+$$\sum_{i,j,i\not=j} \log [1-\Pr(g_{ij}=1|x_i,x_j,z_i,z_j,\theta)^{1-I(g_{ij}=1)}]\},$$
+subject to $|z_i -z_j|$ being a legitimate distance measure, namely:
+$$|z_i - z_j|\le |z_i - z_k|+|z_j-z_k|, \forall i,j,k \in n. $$
+
+In practice, $Z$ is often chosen to be a low-dimensional Euclidean space for model parsimony and interpretability. Because distance measure between agents are invariant under rigid motions (rotation, reflection and translation) in Euclidean space, there isn't a set of \emph{absolute} coordinates to represent all the agents. We can define a class of equivalent positions $[z_{i}]$ for each agent $i$ that in theory will exhaust the trajectory of coordinates under any possible rigid motions while preserving the relative distance between all other agents. A representative coordinates $z_i^*$ can be derived from $[z_i]$ using procrustean transformation given an arbitrary fixed point (usually the origin of Euclidean coordinate systems). Also note that even though latent space model doesn't have specific parameters to capture reciprocity and transitivity like ERGMs, they're implicitly coded into the distance measure (Hoff et al., 2002).\\
+
+There are many ways to extend the the tie generating function, for example, a random sender or receiver effect can be added to the logistic regression to capture other idiosyncratic information for each agent concerning their tie sending and receiving tendencies: 
+
+$$\text{logit}[g_{ij}=1|x_i,x_j,z_i,z_j,\theta]=\theta^\intercal \cdot \begin{pmatrix}
+1\\x_i\\x_j \end{pmatrix} + |z_i - z_j| + \zeta_i + \eta_j,$$
+where $\zeta_i$ is a random sender effect for $i$ and $\eta_j$ is a random receiver effect for $j$, usually drawn from a normal distribution with mean $0$ and variance to be estimated from the data. It's natural to include these terms when modeling directed networks.
+
+\subsection{Confounders on Networks}
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-1.2in} % move to the left
+  \includegraphics[width=100mm]{diagram_1.jpg}
+  \captionof{figure}{Without Tie Selection}
+  \label{fig:diagram1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.2in} % move to the left
+  \includegraphics[width=100mm]{diagram_2.jpg}
+  \captionof{figure}{With Tie Selection}
+  \label{fig:diagram2}
+\end{minipage}
+\end{figure}
+
+Contagion in networks is usually operationalized as a weighted sum of the lagged behaviors of an agent's neighbors (Aral et al., 2009, Shalizi \& Thomas, 2011). If the tie formation is not endogenous, meaning that the tie formation is not (at least partially) determined by characteristics of agents, then a naive regression of an agent's behavior on the lagged contagion term will be enough to identify the contagion effect. However, unless the tie formation is randomized (e.g., the random roommate assignment study. Sacerdote, 2001), the assumption is unlikely to hold in any observational networks.\\
+
+If the tie formation is endogenous, then a tie is co-determined by 
+both an agent's characteristics and that of her neighbors. Under the assortative mixing assumption, those characteristics tend to be positively correlated. If this is the case, then the naive regression will generate biased estimation because an unknown proportion of the correlation between outcome and treatment that should have been attributed to the variation in those characteristics are wrongly attributed to the causal effect of the treatment. Another way to see this is through Pearl's causal diagram (or Bayesian network) approach. By using an agent's neighbors' behavior as the treatment, we're selecting nodes based on the presence of ties, in other words, we're implicitly conditioning on the presence of a tie in the regression analysis. This is a typical situation for conditioning on a \emph{collider}, even when the characteristics of an agent is absolutely uninformative for another randomly chosen agent in the population (Figure-1), conditioning on the presence of a tie (the collider) will render the common causes (characteristics of agents) correlated (Figure-2). Because of this correlation, a confounding path from the treatment to outcome is "unblocked", the so-called M-bias or butterfly bias will appear in the estimation (Ding \& Luke Miratrix, 2014).\\
+
+The same argument can be used for characteristics that are unobserved, but there is no way to adjust for them. The latent space models offer a promising way to solve this problem (at least in some situation) by using the latent space coordinates as proxy for those unobserved characteristics so that they can be adjusted in subsequent regression analysis.\\
+
+\section{Data}
+
+The dataset I use is based on Coleman et al.'s (1957, 1966) classic study on medical innovation, it's a study on the prescription of a new drug among physicians in four towns/cities in Illinois (Peoria, Bloomington, Quincy and Galesburg) in the fifties. It's been reorganized and reanalyzed by many other scholars including Burt (1987), Valente (1995) and Van den Bulte \& Lilien (2001). I will use Burt's data in the subsequent analysis.\\
+
+The dataset is mainly concerned with the impact of network ties on the physicians' adoptions of a new drug, tetracycline. Three sociomatrices were generated. One was based on the replies to a question, "When you need information or advice about questions of therapy where do you usually turn?" (the $A$ matrix), a second stemmed from the question "And who are the three or four physicians with whom you most often find yourself discussing cases or therapy in the course of an ordinary week -- last week for instance?" (the $D$ matrix). And the third was simply "Would you tell me the first names of your three friends whom you see most often socially?"(the $F$ matrix).\\
+
+In addition, records of prescriptions were collected based on the official records rather than self-reports. A total number of 13 covariates are available on the node level: city of practice, recorded date of tetracycline adoption date, years in practice, meetings attended, journal subscriptions, free time activities, discussions, club memberships, friends, time in the community, patient load, physical proximity to other physicians and medical specialty. All coded as factors with discrete values. See Table-1 for the summaries of covariates and the appendix for the codebook.\\
+
+\subsection{Network Statistics}
+There are literally hundreds of statistics that can be derived from the adjacency matrices, a separate paper can be written solely based on that. Here I will focus on a few that I think will be most relevant to the adoption behaviors of the physicians.  All the following statistics are computed separately on $A$ (adviser relations),$D$(discussion relations), and $F$ (friendship). While a network is a more general concept and a graph (usually represented by an adjacency matrix) is a mathematical structure, I will use three of them interchangeably. See Figure 7-18 for a graphical representation of the network structures for 12 relation-city combinations.\\
+
+Let's first take a quick look at the out and in degree distributions of the nodes (Table 2-3). The out degree distribution is not very informative because the upper limit is set artificially by the survey, the in degree distribution, however, is worth to investigate a little bit more. First, the distribution is highly screwed. A big majority ($62.6\%, 52.0\%, 47.6\%$) of nodes receives either 0 or 1 vote, it turns out that the Gini coefficients for $A,D,F$ are $0.67$, $0.58$, and $0.50$ respectively, which are all in the high end of inequality measure. Friendship is the least unequal in the three, discussion relationship is more unequal than friendship and adviser relationship is the most unequal, it makes intuitive sense because adviser (and discussion to a less extent) relies heavily on a physician's expertise and reputation, it's likely to be concentrated on a small fraction of the population, but the friendship is a quite different process. \\ 
+
+A few other questions that might also be interesting to look into are: To what extend do these relationship overlap with one another? Do physicians with high status (got more votes for adviser and discussion) tend to be more or less popular socially (got more friendship votes)? A simple correlation check shows that all three in degrees are highly positively correlated, especially for adviser and discussion relation ($0.85$). Discussion and friendship ($0.53$) are more correlated than adviser and friendship ($0.42$). \\
+
+A few other centrality metrics can be computed, betweenness and closeness, for example. Betweenness measures a node's function as a bridge, for an arbitrary node $v$, it's formally defined as:
+$$B(v) = \sum_{\forall i \to j} \frac{|d_{i \to v \to j}|}{|d_{i \to j}|}, i,j,v \in n, i \not= j, v \not= i, v \not= j,$$ where $|d|$ is the cardinality (counting) function of geodesics (shortest paths) from a node to another. A high betweenness measure means that the node lies on a large number of geodesics, thus is important for the connection between other pairs of nodes. Closeness measures how far a node is to all other nodes, one way to define it is:
+$$C(v)=\frac{1}{n-1}\cdot \sum_{\forall i} \frac{1}{d_{v \to i}}, i,v \in n, i \not= v, $$ where $d$ is the geodesic distance from a node to another, it is set to be $\infty$ if the two nodes are not connected.\\
+
+Physicians' betweenness measure is highly correlated with their in degrees across all cities and type of relations, which means physicians with high in degree are also more likely to be bridges, playing an important role in connecting other physicians to each other (Table-4). However, the correlation between in degree and closeness is weak to none across all cities and type of relations, meaning physicians with high votes are not necessarily ones that are "close" to everyone else (Table-5).\\
+
+Now let's investigate two global measures of the networks, average path length and average clustering coefficient (Watts \& Strogatz, 1998). We can see from Figure 7-18 that in each city, most nodes belong to one connected component, and the adjacency matrices are cleanly separated by cities, meaning that there is no cross-city ties. These two statistics are computed on the largest connected component in each city-relation combination.\\
+
+Average path length is defined as: 
+$$L(g) = \frac{1}{n(n-1)}\sum_{\forall i \to j}d_{i \to j}, i,j \in n.$$
+Note that even though the component $g$ is connected, the geodesics might not exist for $i \to j$ because there is no \emph{directed} path. In that case the pair $i \to j$ is eliminated from the summation and also the normalization factor. 
+
+Average clustering coefficient is define as:
+$$CC(g) = \frac{1}{n}\sum_{\forall i} \frac{2E(\{\kappa_i\})}{|\{\kappa_i\}|\cdot(|\{\kappa_i\}|-1)}, i \in n,$$
+where $\{\kappa_i\}$ is the set of all neighbor of $i$, and $E(\{\kappa_i\})$ is the number of edges among all the nodes in $\{\kappa_i\}$. It first captures the proportion of $i$'s neighbors that are connected to each other, and then average over all nodes in the graph.\\
+
+I calculated the average path length and average clustering coefficient on the largest component for all 12 city-relation combinations ($O$) and compared those numbers with randomly generated bernoulli graphs ($R$) with the same number of nodes and density (the fraction of all possible ties that are realized). We can see from Table-6 that the observed network has smaller average path length and much higher clustering coefficient compared with random graphs, it matches the properties of "small-world" networks.\\
+
+Since the observed networks are highly clustered, it's worth taking a closer look at the local structures of ties. I compute three numbers on each network: the number of mutual ties, the number of transitive triangles and the number of three-circles and then compare them with random graphs with same number of nodes and density (Table-7). Some quick observations are: observed networks are much more likely to form mutual ties and transitive triangles and three-circles than random graphs; ties are more likely to be reciprocated in discussion and friendship relations than in adviser relations; on a triad, transitive relationship is more common than a cyclic one, especially for adviser relations. 
+
+
+
+\subsection{Missing Data}
+
+One big problem with the data set is its missing value, especially those for the adoption date. As shown in Figure 19-30 (white is missing), there are some local clustering of missing values but it's roughly evenly distributed globally. Then I break adoption date into 5 categories to see if there are "neighborhoods" for early or late adopters, and if missingness tend to cluster within those neighborhoods (In Figure 19-30, for visualization purpose I only divided adoption date into two subgroups: red for early adopters, who adopted before time $8$; and orange for late adopters,who adopted after time $8$ or have not adopted before censor time $18$, it can be easily generalized to finer groups, only the pictures look messier due to large number of colors). Again, there is no clear evidence that the missingness dummy is correlated with the adoption date of its neighbors. \\
+
+Then I regress missingness dummy on city of practice, years in practice, meetings attended, journal subscriptions, free time activities, discussions, club memberships, friends, time in the community, patient load, physical proximity to other physicians, medical specialty, in degree, closeness centrality and latent space coordinates (will discuss in details in the analysis section). Only specialty (physicians who answered "other specialty") is significant in predicting missingness on the $.05$ level. \\
+
+Since there 's no strong evidence that the missingness is correlated with adoption date and unobserved covariates, I will treat it as missing at random (MAR) conditioning on observed covariates (the missingness is a random sample within a stratum defined by specialty) in the subsequent analysis.\\
+
+
+\section{Analysis}
+In this section, I will fit the ERGMs to the dataset for further descriptive and exploratory purposes, then I will fit the latent space model to estimate the latent positions for the agents in the network. At the end, following Davin et al. (2014), I will use the latent space coordinates as proxies for unobserved traits of the agents in the survival analysis of the contagion effect.\\
+
+Before fitting network models, we can do some quick check of the key variables of interest. I will explore two particular questions: what does the diffusion process looks like in general? And on individual level, what covariates are correlated with adoption date?\\
+
+First, I fit a Kaplan-Meier survival function to the dataset as a nonparametric way to describe the general diffusion pattern (Table-8). Here the "failure" is the adoption of the new drug, survival means the physician hasn't adopted the new drug by a certain time period. The data is right-censored, after period $18$, the adoption data is not collected. \\
+
+Then I plot the over all survival curve and four survival curves by city (Figure 43-44), as we can see that all the confidence interval overlap with one another in all times, so the diffusion process do not differ significantly by city. In the overall survival curve we can see that each step is almost of the same size before and after time $8$, but the steps before time $8$ is on average bigger than after, meaning the diffusion process is slowing down as time pass by.\\
+
+A simple linear regression of log adoption date on observed covariates generate the result in Table-9. Many factors are predictive of adoption date, which year the physician went to medical school has negative coefficient which means the later a physician went to medical school (more recent graduates or younger in age) earlier he or she tends to adopt the new drug. Similarly, the more patient a physician has, earlier he or she tends to adopt the new drug. If a physician belongs to a club that is composed mostly of doctors, he or she tends to adopt the new drug earlier. One of the centrality measures is also significant: physicians with higher in degree in discussion relation tends to adopt earlier. The model is also robust: all significant covariates remain significant under different specifications (with or without log transformation, factor or continuous coding, etc). \\
+
+
+\subsection{Fitting ERGMs}
+
+I fit ERGMs separately to 12 relation-city combinations, one reason for doing so is that all four cities are segregated (there is no cross-city tie), another one is that the underlying mechanisms for three types of relation might be quite different in nature (especially adviser/discussion versus friendship), this is a hypothesis that can be tested from the data.\\
+
+I fit a network object (using statnet package) to a ERGMS with three types of effects: node level covariates, node match dummy and network effects. Node level covariates are variables collected for each physician, node match dummy is a match function of node level covariates, it's coded as 1 if a covariate is the same for a dyad, 0 otherwise. Network effects include edges, mutual ties, transitive triangles, cyclic triangles, k-out-stars and k-in-stars. \\
+
+The best fitting model (measured by AIC/BIC) is shown in Table 10-12, there are mixed evidence for the nature of tie formation across city and relationship, few terms are consistently significant. For node level covariates, consider the year a physician had served in the community (nodefactor.community) as an example, the interpretation for the coefficient is that, given a dyad, when holding other things constant, if one of the two nodes is in another community, the log odds of a tie appear between them will increase by certain amount (the magnitude of the coefficient) compared with baseline group(both nodes involved in the dyad are in community 1). \\
+
+Node match dummy is one I'm more interested in because it can be used as a test for observed homophily. Significant homophily on the year in which a physician graduated from medical school (med\_sch\_yr), proximity with other physicians and specialty are detected in at least one city in each type of relation, this homophilous selection in tie formation is stronger for adviser and discussion relations than friendship, in terms of significance and magnitude. In another model in which a node match dummy is included for all covariates, only med\_sch\_yr, proximity and specialty are significant. Knowing that there is homophilous selection on these attributes, I also check the mixing matrix (attributes of sender and attributes of receiver), a large proportion of ties lie on the diagonals. I've only included edges and mutual ties in the final model because transitive triangle and cyclic triangle will cause model degeneracy (Handcock, 2003) and k-in-star and k-out-stars do not contribute significantly to the overall model fit.\\
+
+I examined the goodness of fit by simulating networks from the model specification and estimated coefficient and check the distributions of a few key statistics (in degree, out degree, geodesic distance and triangle). In general the model fits the general shape well (Figure-45).\\
+
+
+\subsection{Fitting Latent Space Models}
+Knowing that observed homophily is presented in the networks, we might expect that there is also assortative mixing on unobserved traits of the physicians. This is a particularly big challenge because observed homophily can be adjusted but unobserved homophily still have the poential to be a counfounder in the estimation of contagion effect.\\
+
+I fit a latent space model (with latentnet package) to each relation-city combination with all node level covariates and a random receiver effect to account for the heterogeneity in the tendency to receive ties among physicians. For the latent space, I tried Euclidean space with 1 to 4 dimensions, 3 dimensions has the best fit (measured by the highest log probability of observing the observed network conditioning on everything else), but only slightly better than 2 dimensions, therefore I used 2 dimensions in the final model just for the visualization purpose. See the coordinates each agent occupies in Figure 31-42.\\
+
+Similarly, I plot the diagnostics (Figure-46). We can see that latent space model doesn't capture the out degree distribution quite well compared with ERGMs, this is probably because this is a more parsimonious modeling approach and network effects are not included. Since the latent coordinates are in quite different scales, I then standardize them and merge them with the data set in the survival analysis to estimate the contagion effect.
+\\
+
+\subsection{Fitting Parametric Survival Function}
+I fit a discrete time hazard model (Allison, 1982) to the diffusion process, the key parameter of interest is the coefficient of contagion effect, which is operationalized by an average (equally weighted) of the lagged (by one time period) adoption behavior of an agent's neighbors. Formally,\\
+
+$$\text{logit}[\Pr(Y_{i,t}=1|Y_{i,t-1}=0)] = \beta^\intercal \cdot
+\begin{pmatrix} 1\\x\\T_{t} \end{pmatrix}, $$
+$$T_{t}=\frac{\sum_{\forall j} (Y_{j,t-1}\cdot g_{ij})}{|\{\kappa_i\}|}, x \in \mathbb{R}^r, \beta \in \mathbb{R}^{r+2}, r \in \mathbb{N}, i, j \in n,$$
+
+where $T_t$ (the treatment) captures the contagion effect on period $t$, which is a sum of the behaviors of all other agents in time $t-1$, weighted by the tie presence $g_{ij}$ (assuming contagion can only be transmitted through ties, and more specifically, from a receiver to a sender, but not the other way around) and normalized by the number of neighbors $|\kappa_i|$. $x$ is a vector of length $r$ that includes all covariates that should be adjusted for, $\beta$ is the vector of coefficient to be estimated from the model. On the RHS, only the contagion effect is time-variate.\\
+
+Also note that, there are many other ways to operationalize the contagion effect. For example, a sum weighted by some centrality or popularity measures (the so-called opinion leaders in marketing research literature) of the neighbors (Van den Bulte \& Lilien, 2001), or even relax the assumption that contagion can only be transmitted through ties, structure equivalence is another mechanism for contagion, agent might want to mimic the behavior of those who are structurally similar to them on the network in the fear of losing competitive advantage (Burt, 1987). \\
+
+Since there are reasons to suspect that there is homophilous selection on unobserved traits, a regression analysis without adjusting for those unobserved traits might bias the estimation. The key question here is, how does the inclusion of latent space coordinates change the contagion effect in the regression analysis? Will it reduce the bias as suggested by Davin et al. (2014)?\\
+
+I merged all four cities together (included a city dummy in the pooled analysis) and run the analysis for each type of relation. As we can see in table-13 (some controls are included in the analysis but not shown in the table), the results for the controls are consistent with a simple regression of log adoption date on covariates. The contagion effect is strongly positive and significant in all three relations, and as expected, it's stronger for adviser and discussion relations than friendship.\\
+
+I then included latent coordinates into the regression and compare the results (Table-14). We can see that the magnitude of contagion increased in all three relations. I also want to check the effect of contagion transmitted through one type of relation while holding other two constant. I included all three contagion term in one regression and only contagion through advisers is significant (Table-15). Again, the effect is magnified once adjusting for latent coordinates.\\
+
+But how do we know if adjusting for latent space coordinates indeed reduced the bias or not? For an observational study, in most cases we don't know what the true effect is, however, this dataset has an interesting property. Van den Bulte \& Lilien (2001) reanalyzed the same dataset with some additional information which were not included in the original dataset: the marketing efforts of the drug company, or what they call the detailing in pharmaceutical industry. They argued from two directions that the contagion effect should be negligible in this specific situation: first, theoretically, physicians answered in a survey conducted in the 50s that detailing and advertisement are much more important for their decision than the behaviors of their peers, also, the new drug is merely an incremental improvement from a very mature product line manufactured by a well reputed company, therefore there's very low risk associated with the prescription; second, empirically, they showed that after adjusting for the omitted marketing efforts, the contagion effect goes away. \\
+
+If the effect of contagion identified from the data set is indeed spurious and we're fairly confident that the true effect is close to zero, then we can use this property to test the bias of different model specification. In this case, we can see that after adjusting for latent space coordinates, the bias is amplified (the coefficient moved further away from zero) rather than reduced.\\
+
+\section{Bias Amplification}
+In this section I will dig into the bias generating process by decomposing the net bias into distinct parts based on the causes and then apply it to the medical innovation dataset.\\
+
+There has always been controversies in the adjusting strategy for regression analysis, i.e., what kind of variables should be included into the adjusting set? One recommendation has been that conditioning on more, rather than fewer, available (pre-treatment) covariates is the best way to make the ignorablility assumption more plausible (Rubin 2002). This is usually a good strategy if we assume all confounders are measured, which is very unlikely to be the case in any nontrivial real world situations. Is it still a good idea to adjust for as many pre-treatment variable as possible when there are confounders?\\
+
+Bhattacharya \& Vogt (2007) and Wooldridge (2009) have identified a class of covariates which tend to amplify bias if such exists. I will use Pearl's (2009) framework to illustrate the idea in a linear system and then extend it to a nonlinear system and use it to explain why adjusting for latent coordinates amplified the bias in this particular situation.\\
+
+For a causal diagram shown in (figure-3), $T$ is the treatment, $Y$ is the outcome, $U$ is an observed confounder and $Z$ is a pre-treatment variable. For simplicity and tractability, all variables are standardized with zero mean and unit variation, all causal relations are linear.  Also note that we assume $Z$ and $U$ are independent.\\
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-1.2in} % move to the left
+  \includegraphics[width=100mm]{diagram_3.jpg}
+  \captionof{figure}{Pure IV $Z$}
+  \label{fig:diagram1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.2in} % move to the left
+  \includegraphics[width=100mm]{diagram_4.jpg}
+  \captionof{figure}{IV-Like $Z$}
+  \label{fig:diagram2}
+\end{minipage}
+\end{figure}
+
+We consider three quantity: $\beta_1$, the true causal effect of $T$ on $Y$; $\beta_2$, the unconditioned regression estimation of $Y$ on $T$ and $\beta_3$, the regression estimation of $Y$ on $T$ conditioning on $Z$. Naturally, bias $B_0$ for unconditioned regression is $|\beta_2 - \beta1|$; bias $B_Z$ for conditioned regression is $|\beta_3-\beta_1|$. It can be shown that (check Pearl for the derivation):
+
+
+\begin{align*}
+B_0 &= |\beta_{UT} \cdot \beta_{UY}|,\\
+B_X &= \frac{|\beta_{UT} \cdot \beta_{UY}|}{1-\beta_{ZT}^2} = 
+\frac{B_0}{1-\beta_{ZT}^2},
+\end{align*}
+where $\beta_{WV}$ is the causal effect of variable $W$ on variable $V$.\\
+
+In this situation, Z is a pure IV (Instrumental Variable), we can see that (both $Z$ and $T$ are standardized, $\beta_{ZT}$ can only vary between -1 and 1), $B_Z$ will \emph{always} be greater than $B_0$ for nonzero $\beta_{ZT}$. Z is a pure bias amplifier, conditioning on it will only increase the net bias.\\
+
+A more general extension of this situation is shown in Figure-4, where $Z$ behaves like a confounder, again, it's been shown that:
+
+\begin{align*}
+B_0^{\prime} &= |(\beta_{UT} \cdot \beta_{UY}) + (\beta_{ZT} \cdot \beta_{ZY})|,\\
+B_X^{\prime} &= \frac{|\beta_{UT} \cdot \beta_{UY}|}{1-\beta_{ZT}^2} = |(\beta_{UT} \cdot \beta_{UY}) + (\beta_{UT} \cdot \beta_{UY})\cdot \frac{\beta_{ZT}^2}{1-\beta_{ZT}^2}|
+\end{align*}
+
+Notice here that $B_0$ can be decomposed into two parts, which can be thought as the bias introduced by omitting $U$ and $Z$. When conditioning on $Z$, the bias introduced by $Z$ is removed, but accordingly, the bias introduced by $U$ is amplified by a factor of $\frac{\beta_{ZT}^2}{1-\beta_{ZT}^2}$. The magnitude of amplification is a monotonously increasing function of $\beta_{ZT}^2$. Therefore, if $Z$ is an IV-like variable, meaning that it's a much stronger predictor of the treatment than the outcome ($\beta_{ZT}$ is much bigger than $\beta_{ZY}$), then conditioning on $Z$ (even when it's technically a confounder), will increase the net bias.\\  
+
+At this point, it's very clear that Figure-3 is a special case of Figure-4, in which $\beta_{ZY}$=0. Another way to understand why pure IV $Z$ is always a bias amplifier is that: there is no penalty for omitting $Z$, but once it's conditioned on, the bias introduced by $U$ will be amplified.\\
+
+Now, I will apply the concept in the network setting. If we take a closer look at the treatment process under the latent space model: 
+
+$$
+T_{t}=\frac{\sum_{\forall j} (Y_{j,t-1}\cdot g_{ij})}{|\{\kappa_i\}|},$$
+$$g_{ij} = 
+\begin{cases}
+1, & \text{if}   \Pr(g_{ij}=1|x_i,x_j,z_i,z_j,\theta) >= p^* \\
+0, & \text{if}   \Pr(g_{ij}=1|x_i,x_j,z_i,z_j,\theta) < p^*,
+\end{cases}
+$$
+$$Pr(g_{ij}=1|x_i,x_j,z_i,z_j,\theta) = \frac{\exp\{\text{logit}[g_{ij}=1|x_i,x_j,z_i,z_j,\theta]\}}{1+\exp\{\text{logit}[g_{ij}=1|x_i,x_j,z_i,z_j,\theta]\}},$$
+$$\text{logit}[g_{ij}=1|x_i,x_j,z_i,z_j,\theta]=\theta^\intercal \cdot \begin{pmatrix}
+1\\x_i\\x_j \end{pmatrix} + |z_i - z_j| + \zeta_i + \eta_j,$$
+where $p^*$ is the cutoff probability.\\
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-1.2in} % move to the left
+  \includegraphics[width=100mm]{diagram_5.jpg}
+  \captionof{figure}{No Effect on Outcome}
+  \label{fig:diagram1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.2in} % move to the left
+  \includegraphics[width=100mm]{diagram_6.jpg}
+  \captionof{figure}{Pure "IV" Z}
+  \label{fig:diagram2}
+\end{minipage}
+\end{figure}
+
+
+
+Because of the tie selection process, the treatment variable is a function of the latent coordinates. A quick regression of the contagion variable on latent space coordinates confirmed this (dimension $z_1$ is significant but $z_2$ is not). However, what we've failed to check til this point is whether these latent coordinates (used as proxies for latent traits of physicians) are predictive of the outcome (adoption behaviors). Again, a quick regression of adoption date on latent coordinates shows that in this case, the latent coordinates do not explain the adoption behavior. Therefore, the causal diagram in Figure-2 should be modified to Figure-5. If we remove $X$ from the diagram and add in a confounder $U$ (marketing efforts), we have a pattern that is very similar to Figure-3, in which latent coordinates $Z$ are pure IVs (If we're concerned about the correlation between $X$ and $Z$, we can always regress $Z$ on $X$ and use the residuals as new $Z$, this can be interpreted as the latent traits that are orthogonal to observed characteristics).\\
+
+Based on Pearl, covariates that are strong predictors of treatment but are not strongly correlated with the outcome have potential to increase bias once conditioned on. The latent coordinates are, by model specification, strongly correlated with treatment (through link formation) but in this case not at all predictive of the outcome (adoption). Even though in this situation, the treatment-outcome relation is no longer linear (it's a logistic regression, see Pearl for a glimpse into the bias in general non-linear system, the mathematics are more involved and less informative, also the formula proposed by Pearl applies only to differentiable functions, which doesn't apply to binary outcomes), we still have reason to suspect that conditioning on latent coordinates might not be a good idea in this case. The intuition is that, when we're interpreting the coefficient of treatment, we're implicitly forcing a unit change in the treatment, and the treatment process is determined by $Z$ and $U$ (Figure-2), if $Z$ is conditioned on, then in order to have a unit variation in $T$, $U$ must vary more, this variation is transmitted to the outcome $Y$, thus an additional amount of variation in $Y$ that is caused by the variation in $U$ is misattributed to the unit increase in $T$, that's where the bias comes from. Since it's hard to demonstrate this point analytically when the outcome is binary, I will use simulation to show that this is the case for the medical innovation dataset.\\
+
+
+
+\section{Simulation}
+In the last section, I will generate random adoption behaviors with a specified confounder $U$, then I will reanalyze the simulated data with the same discrete time hazard model to show how bias changes as a function of the dependency between latent coordinates and adoption behavior.\\
+
+I set the data generating process artificially as following:
+
+$$\text{logit}[Y_{i,t}=1|Y_{i,t-1}=0] = \beta_0 + \beta_{x1} X_1 + \beta_{x2} X_2 + \beta_z Z + \beta_u U,$$
+where $X_1,X_2$ are two observed covariates, $Z$ is the latent space coordinates, $U$ is an unobserved confounder. And I will regress the simulated adoption in two ways:
+\begin{align*}
+\text{logit}[Y_{i,t}=1|Y_{i,t-1}=0] &= \beta_0 + \beta_{x1} X_1 + \beta_{x2} X_2 + \beta_t T_t,\\
+\text{logit}[Y_{i,t}=1|Y_{i,t-1}=0] &= \beta_0 + \beta_{x1} X_1 + \beta_{x2} X_2 + \beta_z Z + \beta_t T_t.
+\end{align*}
+
+Note here the contagion effect is not part of the "true" process, a better approach would be the one that produces a $\beta_t$ that is closer to 0.\\
+
+In this simulation, I use the year a physician graduated from medical school (med\_sch\_yr) and the number of journals he or she subscribed to (log jours) as two observed predictors. Latent space coordinates are based on the same model specification in fitting the observed adviser network in City 1. The value of $X_1,X_2$ are obtained from observed values in physicians in City 1, $Z$ is estimated from the network and $U$ is randomly drawn from a standard normal distribution.\\
+
+I experimented with a large number of combinations of $\beta$, one finding is quite robust among all specifications: when I set $\beta_z=0$, which means the latent coordinates are not predictive of the adoption, conditioning on $Z$ will \emph{almost always} amplify the net bias (to make this an absolute claim using simulation, I'd have to exhaust the high dimensional space of all possible $\beta$ values which is infeasible, I've covered a reasonably wide range and the result still holds). In other words, conditioning on $Z$ when it's not predictive of adoption will make the contagion effect further away from 0. The story is more complicated when $\beta_z$ is nonzero, I got mixed results: sometimes conditioning on $Z$ will amplify the net bias but sometimes it will reduce. An example with specific $\beta$ values is shown in Table-16 ($\beta_0=-10, \beta_1=2, \beta_2=2, \beta_z=0, \beta_u = 2$) , Table-17 ($\beta_0=-10, \beta_1=0.5, \beta_2=1.5, \beta_z=2, \beta_u = 2$) and Table-18 ($\beta_0=-10, \beta_1=2, \beta_2=2, \beta_z=1, \beta_u = 2$).\\
+
+The simulation can be extended by modeling the treatment process: we can manipulate the effect of $Z$ on the treatment $T$ by generating random networks under the latent space formula and see how it influences the bias.\\
+
+
+\section{Conclusion}
+Homophilous selcection on unobserved traits in tie formation makes the identification of contagion effect unattainable from observational social networks . One application of the latent space models is to use the estimated latent coordinates as proxy for unobserved traits to condition on in the subsequent regression analysis. Davin et al. (2014) has shown that conditioning on latent coordinates will reduce the bias in estimating the contagion effect, however, there are two important assumptions behind that. First, there are no other confounder's except the latent traits tie formation is selecting on; second, the latent traits captured by the latent coordinates are predictive of the outcome.\\
+
+I tested the idea on a classic dataset on the diffusion of medical innovation, the result shows that if assumption one doesn't hold, which is very likely to be the case in any observational study, then using latent space coordinates as an adjustment is not always a good idea, especially when assumption two doesn't hold either, in this case adjusting for latent coordinates will almost always make the estimation further away from the truth. This can be explained by Pearl's bias-amplification framework, in which the latent space coordinates are acting like instrumental variables (IVs).\\
+
+What's the implication for future empirical study then? As we can see from the result of simulation, whether the latent space approach will amplify or reduce the bias depends on many factors, the effect of latent coordinates, the effect of other covariates and the effect of confounder. In order to know precisely what to do requires substantive knowledge of the underlying causal diagram, which is almost never the case. However, based on this study, one suggestion I can make is to regress the outcome on the estimated latent coordinates to see if they're predictive, if not, then conditioning on them will very likely make the estimation worse.\\
+
+Finally, in this study I modeled three different types of relations separately, Ansari et al. (2011) has developed an integrated framework for simultaneously
+modeling the connectivity structure of multiple relationships of different
+types on a common set of agents, it'd be a natural way to extend this study.
+
+
+\section*{REFERENCE}
+\indent
+\begin{comment}
+this is how you comment a block of words 
+\end{comment}
+
+%\hangindent=2em
+%\hangafter=2
+
+
+\begin{hangparas}{.25in}{1}
+Angrist, J. D., \& Pischke, J. S. (2008). Mostly harmless econometrics: An empiricist’s companion. Princeton University Press.
+\end{hangparas}
+
+\begin{hangparas}{.25in}{1}
+Ansari, A., Koenigsberg, O., \& Stahl, F. (2011). Modeling multiple relationships in social networks. Journal of Marketing Research, 48(4), 713-728.
+\end{hangparas}
+
+\begin{hangparas}{.25in}{1}
+Aral, S., Muchnik, L., \& Sundararajan, A. (2009). Distinguishing influence-based contagion from homophily-driven diffusion in dynamic networks. Proceedings of the National Academy of Sciences, 106(51), 21544-21549.
+\end{hangparas}
+
+\begin{hangparas}{.25in}{1}
+Mark S. Handcock, Adrian E. Raftery and Jeremy Tantrum (2002). Model-Based Clustering for Social Networks. Journal of the Royal Statistical Society: Series A, 170(2), 301-354.
+\end{hangparas}
+
+\begin{hangparas}{.25in}{1}
+Peter D. Hoff, Adrian E. Raftery and Mark S. Handcock (2002). Latent space approaches to social network analysis. Journal of the American Statistical Association, 97(460), 1090-1098.
+\end{hangparas}
+
+\begin{hangparas}{.25in}{1}
+Pavel N. Krivitsky, Mark S. Handcock, Adrian E. Raftery, and Peter D. Hoff (2009). Representing degree distributions, clustering, and homophily in social networks with latent cluster random effects models. Social Networks, 31(3), 204-213.
+\end{hangparas}
+
+\begin{hangparas}{.25in}{1}
+Pavel N. Krivitsky and Mark S. Handcock (2008). Fitting Position Latent Cluster Models for Social Networks with latentnet. Journal of Statistical Software, 24(5).
+\end{hangparas}
+
+
+\section*{TABLES \& FIGURES}
+
+%\clearpage
+% network figures
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{net_a1.jpeg}
+  \captionof{figure}{Matrix $A$ for City 1}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.5in}
+  \includegraphics[width=90mm]{net_a2.jpeg}
+  \captionof{figure}{Matrix $A$ for City 2}
+  \label{fig:test2}
+\end{minipage}
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{net_a3.jpeg}
+  \captionof{figure}{Matrix $A$ for City 3}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.5in}
+  \includegraphics[width=90mm]{net_a4.jpeg}
+  \captionof{figure}{Matrix $A$ for City 4}
+  \label{fig:test2}
+\end{minipage}
+\end{figure}
+
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{net_d1.jpeg}
+  \captionof{figure}{Matrix $D$ for City 1}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.5in}
+  \includegraphics[width=90mm]{net_d2.jpeg}
+  \captionof{figure}{Matrix $D$ for City 2}
+  \label{fig:test2}
+\end{minipage}
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{net_d3.jpeg}
+  \captionof{figure}{Matrix $D$ for City 3}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.5in}
+  \includegraphics[width=90mm]{net_d4.jpeg}
+  \captionof{figure}{Matrix $D$ for City 4}
+  \label{fig:test2}
+\end{minipage}
+\end{figure}
+
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{net_f1.jpeg}
+  \captionof{figure}{Matrix $F$ for City 1}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.5in}
+  \includegraphics[width=90mm]{net_f2.jpeg}
+  \captionof{figure}{Matrix $F$ for City 2}
+  \label{fig:test2}
+\end{minipage}
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{net_f3.jpeg}
+  \captionof{figure}{Matrix $F$ for City 3}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.5in}
+  \includegraphics[width=90mm]{net_f4.jpeg}
+  \captionof{figure}{Matrix $F$ for City 4}
+  \label{fig:test2}
+\end{minipage}
+\end{figure}
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{missing_a1.jpeg}
+  \captionof{figure}{Matrix $A$ for City 1}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.5in}
+  \includegraphics[width=90mm]{missing_a2.jpeg}
+  \captionof{figure}{Matrix $A$ for City 2}
+  \label{fig:test2}
+\end{minipage}
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{missing_a3.jpeg}
+  \captionof{figure}{Matrix $A$ for City 3}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.5in}
+  \includegraphics[width=90mm]{missing_a4.jpeg}
+  \captionof{figure}{$A_4$ for City 4}
+  \label{fig:test2}
+\end{minipage}
+\end{figure}
+
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{missing_d1.jpeg}
+  \captionof{figure}{Matrix $D$ for City 1}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.5in}
+  \includegraphics[width=90mm]{missing_d2.jpeg}
+  \captionof{figure}{Matrix $D$ for City 2}
+  \label{fig:test2}
+\end{minipage}
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{missing_d3.jpeg}
+  \captionof{figure}{Matrix $D$ for City 3}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.5in}
+  \includegraphics[width=90mm]{missing_d4.jpeg}
+  \captionof{figure}{Matrix $D$ for City 4}
+  \label{fig:test2}
+\end{minipage}
+\end{figure}
+
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{missing_f1.jpeg}
+  \captionof{figure}{Matrix $F$ for City 1}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.5in}
+  \includegraphics[width=90mm]{missing_f2.jpeg}
+  \captionof{figure}{Matrix $F$ for City 2}
+  \label{fig:test2}
+\end{minipage}
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{missing_f3.jpeg}
+  \captionof{figure}{Matrix $F$ for City 3}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.5in}
+  \includegraphics[width=90mm]{missing_f4.jpeg}
+  \captionof{figure}{Matrix $F$ for City 4}
+  \label{fig:test2}
+\end{minipage}
+\end{figure}
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{m_a1.jpeg}
+  \captionof{figure}{$A$ for City 1}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.0in}
+  \includegraphics[width=90mm]{m_a2.jpeg}
+  \captionof{figure}{$A$ for City 2}
+  \label{fig:test2}
+\end{minipage}
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{m_a3.jpeg}
+  \captionof{figure}{$A$ for City 3}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.0in}
+  \includegraphics[width=90mm]{m_a4.jpeg}
+  \captionof{figure}{$A$ for City 4}
+  \label{fig:test2}
+\end{minipage}
+\end{figure}
+
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{m_d1.jpeg}
+  \captionof{figure}{$D$ for City 1}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.0in}
+  \includegraphics[width=90mm]{m_d2.jpeg}
+  \captionof{figure}{$D$ for City 2}
+  \label{fig:test2}
+\end{minipage}
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{m_d3.jpeg}
+  \captionof{figure}{$D$ for City 3}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.0in}
+  \includegraphics[width=90mm]{m_d4.jpeg}
+  \captionof{figure}{$D$ for City 4}
+  \label{fig:test2}
+\end{minipage}
+\end{figure}
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{m_f1.jpeg}
+  \captionof{figure}{$F$ for City 1}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.0in}
+  \includegraphics[width=90mm]{m_f2.jpeg}
+  \captionof{figure}{$F$ for City 2}
+  \label{fig:test2}
+\end{minipage}
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-0.9in}
+  \includegraphics[width=90mm]{m_f3.jpeg}
+  \captionof{figure}{$F$ for City 3}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.0in}
+  \includegraphics[width=90mm]{m_f4.jpeg}
+  \captionof{figure}{$F$ for City 4}
+  \label{fig:test2}
+\end{minipage}
+\end{figure}
+
+\clearpage
+
+\begin{table}[ht] \centering 
+  \caption{Descriptive Statistics for All Covariates} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+Statistic & \multicolumn{1}{c}{N} & \multicolumn{1}{c}{Mean} & \multicolumn{1}{c}{St. Dev.} & \multicolumn{1}{c}{Min} & \multicolumn{1}{c}{Max} \\ 
+\hline \\[-1.8ex] 
+adoption\_date & 125 & 7.976 & 5.496 & 1 & 18 \\ 
+med\_sch\_yr & 223 & 3.686 & 1.560 & 1 & 6 \\ 
+meetings & 220 & 1.277 & 0.788 & 0 & 2 \\ 
+jours & 217 & 4.249 & 1.918 & 1 & 8 \\ 
+free\_time & 216 & 1.634 & 0.830 & 1 & 3 \\ 
+discuss & 212 & 1.561 & 0.569 & 1 & 3 \\ 
+clubs & 209 & 0.105 & 0.308 & 0 & 1 \\ 
+friends & 205 & 1.898 & 0.987 & 1 & 4 \\ 
+community & 228 & 4.206 & 1.510 & 1 & 8 \\ 
+patients & 195 & 4.062 & 1.535 & 1 & 6 \\ 
+proximity & 203 & 2.429 & 0.789 & 1 & 4 \\ 
+specialty & 228 & 2.675 & 1.311 & 1 & 4 \\ 
+\hline \\[-1.8ex] 
+\end{tabular} 
+\end{table} 
+
+\begin{table}[ht]
+\caption{Out Degree Distribution} % title of Table
+\centering 
+\begin{tabular}{c c c c c} % centered columns (4 columns)
+\\[-1.8ex] \hline \hline  %inserts double horizontal lines
+Matrix & 0 & 1 & 2 & 3\\ %[0.5ex] % inserts table
+%heading
+\hline \\[-1.8ex]  % inserts single horizontal line
+$A$ & 57  &25 & 37& 127  \\ % inserting body of the table
+$D$ & 42 & 11 & 25 &168 \\
+$F$ &  49  & 16 &  53 & 128  \\  %[1ex] % [1ex] adds vertical space
+\hline %inserts single line
+\end{tabular}
+%\label{table:nonlin} % is used to refer this table in the text
+\end{table}
+
+\begin{table}[ht]
+\caption{In Degree Distribution}
+\centering
+\begin{tabular}{ccccccccccccccccc}
+\\[-1.8ex] \hline\hline
+Matrix & 0 &1&2&3&4&5&6&7&8&9&10&11&12&13&19&20\\
+\hline \\[-1.8ex] 
+$A$ &102 &52 &26 &15 &17  &13  & 6 &  2 &  1 &  5&  2 & 2& 0 &  1 &  0& 2 \\
+$D$ &72 &56 &30 &29 &17 &18  &4  &9 & 5 &0& 1 & 1&  2&  1&  1 &0\\
+$F$ &58 &59 &47 &36 &17 &14 & 6 & 5 & 1 & 2 & 1&0&0&0&0&0 \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\begin{table}[ht]
+\caption{Correlation Between In Degree and Betweenness}
+\centering
+\begin{tabular}{ccccc}
+\\[-1.8ex] \hline\hline
+Matrix & City 1 & City 2 & City 3 & City 4\\
+\hline \\[-1.8ex] 
+$A$ & 0.62 & 0.79 & 0.47 & 0.74\\
+$D$ & 0.65 & 0.73 & 0.57 & 0.93\\
+$F$ & 0.61 & 0.57 & 0.48 & 0.55\\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[ht]
+\caption{Correlation Between In Degree and Closeness}
+\centering
+\begin{tabular}{ccccc}
+\\[-1.8ex] \hline\hline
+Matrix & City 1 & City 2 & City 3 & City 4\\
+\hline \\[-1.8ex] 
+$A$ & -0.12 & 0.06 & 0.09 & -0.06\\
+$D$ & 0.07 & 0.13 & 0.00 & 0.14\\
+$F$ & -0.11 & 0.07 & 0.11 & -0.18\\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[ht]
+\caption{Average Path Length and Average Clustering Coefficient}
+\centering
+\begin{tabular}{c|c|cc|cc}
+\\[-1.8ex] \hline\hline
+Matrix & $n$ & $O_l$ & $R_l$ & $O_{cc}$ & $R_{cc}$\\
+\hline \\[-1.8ex] 
+
+$A_1$ & 106 & 3.58 & 5.93 & 0.14 & 0.02\\
+$A_2$ & 41 & 2.52 & 4.84 & 0.19 & 0.03\\
+$A_3$ & 35 & 3.04 & 3.15 & 0.18 & 0.08\\
+$A_4$ & 33 & 2.33 & 3.09 & 0.28 & 0.06\\
+
+$D_1$ & 113 & 4.82 & 5.23 & 0.15 & 0.02\\
+$D_2$ & 44 & 3.79 & 4.85 & 0.18 & 0.07\\
+$D_3$ & 41 & 2.96 & 4.16 & 0.16 & 0.03\\
+$D_4$ & 33 & 2.35 & 3.24 & 0.24 & 0.05\\
+
+$F_1$ & 110 & 3.62 & 6.23 & 0.12 & 0.01\\
+$F_2$ & 46 & 3.48 & 3.86 & 0.14 & 0.07\\
+$F_3$ & 43 & 3.05 & 3.68 & 0.29 & 0.03\\
+$F_4$ & 34 & 3.15 & 3.16 & 0.19 & 0.07\\
+
+\hline
+\end{tabular}
+\end{table}
+
+
+\begin{table}[ht]
+\caption{Number of Mutual Ties, Transitive Triangles and Three Circles}
+\centering
+\begin{tabular}{c|c|cc|cc|cc}
+\\[-1.8ex] \hline\hline
+Matrix & $n$ & $O_m$ & $R_m$ & $O_{tri}$ & $R_{tri}$ & $O_{cir}$  &$R_{cir}$\\
+\hline \\[-1.8ex] 
+
+$A_1$ & 106 & 11 & 0 & 74 & 8 & 6 & 2\\
+$A_2$ & 41 & 6 & 0 & 45 & 2 & 5 & 0\\
+$A_3$ & 35 & 7 & 1 & 22 & 7 &1 &0\\
+$A_4$ & 33 & 7 & 5 & 36 & 10 & 4 &4\\
+
+$D_1$ & 113 & 31 & 2 & 93 & 12 & 14 & 0\\
+$D_2$ & 44 & 13 & 4 & 50 & 9 & 2 & 3\\
+$D_3$ & 41 & 8 & 1 & 30 & 5 & 4 & 0\\
+$D_4$ & 33 & 15 & 6 & 50 & 9 & 10 & 2\\
+
+$F_1$ & 110 & 35 & 2 & 71 & 6 & 15 &0\\
+$F_2$ & 46 & 16 & 5 & 44 & 20 & 9 &2\\
+$F_3$ & 43 & 17 &4 & 47 & 5 & 9 &3\\
+$F_4$ & 34 & 15 & 4& 49 & 10 & 9 &3\\
+
+\hline
+\end{tabular}
+\end{table}
+
+
+
+
+
+
+\unboldmath
+
+\begin{table}[!htbp] \centering 
+  \caption{Survival Table of Adoption} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}} ccccccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+Time & N.Risk & N.Event & Survival & Std.Err & Lower 95\% CI & Upper 95\% CI\\
+\hline\\[-1.8ex]
+$1$ & $125$ & $11$ & $0.912$ & $0.028$ & $0.864$ & $0.963$ \\ 
+$2$ & $114$ & $9$ & $0.840$ & $0.039$ & $0.778$ & $0.907$ \\ 
+$3$ & $105$ & $9$ & $0.768$ & $0.049$ & $0.697$ & $0.846$ \\ 
+$4$ & $96$ & $11$ & $0.680$ & $0.061$ & $0.603$ & $0.767$ \\ 
+$5$ & $85$ & $11$ & $0.592$ & $0.074$ & $0.512$ & $0.685$ \\ 
+$6$ & $74$ & $11$ & $0.504$ & $0.089$ & $0.424$ & $0.600$ \\ 
+$7$ & $63$ & $13$ & $0.400$ & $0.110$ & $0.323$ & $0.496$ \\ 
+$8$ & $50$ & $7$ & $0.344$ & $0.124$ & $0.270$ & $0.438$ \\ 
+$9$ & $43$ & $4$ & $0.312$ & $0.133$ & $0.240$ & $0.405$ \\ 
+$10$ & $39$ & $1$ & $0.304$ & $0.135$ & $0.233$ & $0.396$ \\ 
+$11$ & $38$ & $5$ & $0.264$ & $0.149$ & $0.197$ & $0.354$ \\ 
+$12$ & $33$ & $3$ & $0.240$ & $0.159$ & $0.176$ & $0.328$ \\ 
+$13$ & $30$ & $3$ & $0.216$ & $0.170$ & $0.155$ & $0.302$ \\ 
+$14$ & $27$ & $4$ & $0.184$ & $0.188$ & $0.127$ & $0.266$ \\ 
+$15$ & $23$ & $4$ & $0.152$ & $0.211$ & $0.100$ & $0.230$ \\ 
+$16$ & $19$ & $2$ & $0.136$ & $0.225$ & $0.087$ & $0.212$ \\ 
+$17$ & $17$ & $1$ & $0.128$ & $0.233$ & $0.081$ & $0.202$ \\ 
+$18$ & $16$ & $0$ & $0.128$ & $0.233$ & $0.081$ & $0.202$ \\ 
+\hline \\[-1.8ex] 
+\end{tabular} 
+\end{table} 
+
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+ \centering
+ \hspace*{-1.2in} % move to the left
+  \includegraphics[width=90mm]{survival.jpeg}
+  \captionof{figure}{Overall Survival Curve}
+  \label{fig:test1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+\centering
+\hspace*{-0.2in} % move to the left
+  \includegraphics[width=90mm]{survival_city.jpeg}
+  \captionof{figure}{Survival Curve by City}
+  \label{fig:test2}
+\end{minipage}
+\end{figure}
+
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{1}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-2} 
+\\[-1.8ex] & log(adoption\_date) \\ 
+\hline \\[-1.8ex] 
+ factor(med\_sch\_yr)2 & $-$0.895$^{**}$ (0.352) \\ 
+  factor(med\_sch\_yr)3 & $-$1.053$^{***}$ (0.358) \\ 
+  factor(med\_sch\_yr)4 & $-$0.350 (0.342) \\ 
+  factor(med\_sch\_yr)5 & $-$0.484 (0.370) \\ 
+  factor(med\_sch\_yr)6 & $-$0.163 (0.453) \\ 
+  meetings & $-$0.134 (0.125) \\ 
+  free\_time & $-$0.100 (0.133) \\ 
+  log(jours) & $-$0.303 (0.209) \\ 
+  discuss & 0.049 (0.149) \\ 
+  factor(clubs)1 & $-$0.637$^{**}$ (0.281) \\ 
+  friends & 0.123 (0.110) \\ 
+  community & 0.061 (0.091) \\ 
+  factor(patients)2 & $-$1.611$^{***}$ (0.562) \\ 
+  factor(patients)3 & $-$0.913$^{*}$ (0.544) \\ 
+  factor(patients)4 & $-$1.152$^{**}$ (0.527) \\ 
+  factor(patients)5 & $-$0.781 (0.527) \\ 
+  factor(patients)6 & $-$0.784 (0.553) \\ 
+  proximity & $-$0.139 (0.115) \\ 
+  specialty & 0.107 (0.124) \\ 
+  log(a\_in\_degree + 1) & 0.110 (0.196) \\ 
+  log(d\_in\_degree + 1) & $-$0.379$^{**}$ (0.162) \\ 
+  log(f\_in\_degree + 1) & $-$0.040 (0.212) \\ 
+  a\_closeness & 0.432 (1.683) \\ 
+  d\_closeness & 4.149 (2.562) \\ 
+  f\_closeness & $-$3.000$^{*}$ (1.634) \\ 
+  Constant & 3.385$^{***}$ (0.862) \\ 
+ \hline \\[-1.8ex] 
+Observations & 100 \\ 
+R$^{2}$ & 0.415 \\ 
+Adjusted R$^{2}$ & 0.218 \\ 
+Residual Std. Error & 0.763 (df = 74) \\ 
+F Statistic & 2.104$^{***}$ (df = 25; 74) \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{1}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+
+\clearpage
+\begin{figure}
+ \centering
+ \hspace*{-0.0in} % move to the left
+  \includegraphics[width=150mm]{fit_a1.jpeg}
+  \captionof{figure}{Goodness-Of-Fit for $A_1$}
+\label{fig:test1}
+\end{figure}
+
+\begin{figure}
+ \centering
+ \hspace*{-0.0in} % move to the left
+  \includegraphics[width=150mm]{fit_a1_latent.jpeg}
+  \captionof{figure}{Goodness-Of-Fit for $A_1$}
+\label{fig:test1}
+\end{figure}
+
+
+\clearpage
+\begin{table}
+\caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lcccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{4}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-5} 
+\\[-1.8ex] & \multicolumn{4}{c}{Matrix $A$} \\ 
+\\[-1.8ex] & City 1 & City 2 & City 3 & City 4\\ 
+\hline \\[-1.8ex] 
+ edges & $-$6.195$^{***}$ & $-$6.820$^{***}$ & $-$4.289$^{***}$ & $-$4.298$^{***}$ \\ 
+  mutual & 1.191$^{***}$ & 0.296 & 1.459$^{***}$ & 0.868$^{*}$ \\ 
+  nodematch.med\_sch\_yr & 0.435$^{***}$ & 0.437 & $-$0.106 & 0.539 \\ 
+  nodematch.proximity & 0.257$^{*}$ & 0.534$^{**}$ & 0.547 & $-$0.875$^{**}$ \\ 
+  nodematch.specialty & 0.758$^{***}$ & $-$0.285 & $-$0.470 & 0.227 \\ 
+  nodefactor.med\_sch\_yr.2 & $-$0.093 & $-$0.274 & $-$0.505 & $-$1.739$^{**}$ \\ 
+  nodefactor.med\_sch\_yr.3 & $-$0.843$^{**}$ & $-$0.261 & 0.043 & $-$0.293 \\ 
+  nodefactor.med\_sch\_yr.4 & $-$1.347$^{***}$ & 0.784 & $-$0.096 & $-$0.119 \\ 
+  nodefactor.med\_sch\_yr.5 & $-$1.187$^{***}$ & 0.076 & 0.228 & 0.140 \\ 
+  nodefactor.med\_sch\_yr.6 & $-$0.856$^{**}$ & 0.047 & $-$0.034 & 0.452 \\ 
+  nodefactor.friends.2 & 0.399$^{***}$ & 0.508$^{*}$ & 0.607$^{**}$ & $-$0.542 \\ 
+  nodefactor.friends.3 & 0.812$^{***}$ & $-$0.414 & 0.480 & $-$0.129 \\ 
+  nodefactor.friends.4 & 0.546$^{**}$ & 0.285 &  & $-$0.772 \\ 
+  nodefactor.community.2 & 0.599$^{**}$ & $-$0.041 & $-$0.053 & 0.808 \\ 
+  nodefactor.community.3 & 0.594$^{**}$ & $-$0.437 & 0.410 & 0.390 \\ 
+  nodefactor.community.4 & 1.095$^{***}$ & $-$0.041 & 0.289 & 0.723 \\ 
+  nodefactor.community.5 & 1.267$^{***}$ & $-$0.624 & $-$0.450 & 0.018 \\ 
+  nodefactor.community.6 & $-$0.074 & 0.263 & $-$0.088 & 1.078$^{**}$ \\ 
+  nodefactor.community.8 &  & 2.315$^{***}$ &  &  \\ 
+  nodefactor.jours.2 & 0.708$^{**}$ & 1.658$^{***}$ &  & $-$0.268 \\ 
+  nodefactor.jours.3 & 0.330 & 1.450$^{**}$ & 0.129 & 0.373 \\ 
+  nodefactor.jours.4 & 0.931$^{***}$ & 1.744$^{***}$ & 0.007 & 0.472 \\ 
+  nodefactor.jours.5 & 1.000$^{***}$ & 1.617$^{**}$ & 0.294 & 0.831 \\ 
+  nodefactor.jours.6 & 0.890$^{***}$ & 0.957 & 2.334$^{**}$ & 1.265$^{*}$ \\ 
+  nodefactor.jours.7 & 0.986$^{***}$ & 1.911$^{***}$ & 1.712$^{***}$ & 1.231$^{**}$ \\ 
+  nodefactor.jours.8 & 1.175$^{***}$ & 2.302$^{***}$ & 0.323 & 4.348$^{***}$ \\ 
+  nodefactor.free\_time.2 & $-$0.169 & 0.011 & 0.222 & $-$0.462 \\ 
+  nodefactor.free\_time.3 & $-$0.356$^{**}$ & $-$0.343 & $-$0.520 & $-$0.118 \\ 
+ \hline \\[-1.8ex] 
+Akaike Inf. Crit. & 2,312.612 & 742.164 & 587.257 & 557.539 \\ 
+Bayesian Inf. Crit. & 2,515.538 & 904.671 & 725.891 & 694.745 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{4}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lcccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{4}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-5} 
+\\[-1.8ex] & \multicolumn{4}{c}{Matrix $D$} \\ 
+\\[-1.8ex] & City 1 & City 2 & City 3 & City 4\\ 
+\hline \\[-1.8ex] 
+ edges & $-$6.244$^{***}$ & $-$7.598$^{***}$ & $-$3.681$^{***}$ & $-$4.896$^{***}$ \\ 
+  mutual & 2.533$^{***}$ & 1.354$^{***}$ & 1.183$^{***}$ & 1.932$^{***}$ \\ 
+  nodematch.med\_sch\_yr & 0.400$^{***}$ & 0.210 & 0.028 & 0.367 \\ 
+  nodematch.proximity & 0.241$^{*}$ & 0.477$^{**}$ & 0.175 & $-$0.069 \\ 
+  nodematch.specialty & 0.508$^{***}$ & 0.486$^{**}$ & $-$0.124 & 0.102 \\ 
+  nodefactor.med\_sch\_yr.2 & 0.137 & 0.114 & 0.352 & $-$1.135 \\ 
+  nodefactor.med\_sch\_yr.3 & $-$0.410 & $-$0.027 & 0.196 & $-$0.180 \\ 
+  nodefactor.med\_sch\_yr.4 & $-$0.672$^{**}$ & 0.790 & $-$0.050 & 0.137 \\ 
+  nodefactor.med\_sch\_yr.5 & $-$0.448 & 0.490 & 0.280 & 0.943$^{*}$ \\ 
+  nodefactor.med\_sch\_yr.6 & $-$0.423 & 0.439 & $-$0.061 & 1.069 \\ 
+  nodefactor.friends.2 & 0.252$^{**}$ & 0.650$^{**}$ & 0.559$^{**}$ & $-$0.488 \\ 
+  nodefactor.friends.3 & 0.377$^{**}$ & $-$0.155 & 0.511 & 0.105 \\ 
+  nodefactor.friends.4 & 0.137 & 0.817 &  & $-$0.183 \\ 
+  nodefactor.community.2 & 0.747$^{***}$ & $-$0.032 & $-$0.912$^{*}$ & 1.917$^{**}$ \\ 
+  nodefactor.community.3 & 0.570$^{**}$ & $-$0.068 & 0.182 & 0.256 \\ 
+  nodefactor.community.4 & 0.898$^{***}$ & 0.451 & $-$0.473 & 0.973$^{*}$ \\ 
+  nodefactor.community.5 & 0.907$^{***}$ & 0.046 & $-$0.781 & 0.700 \\ 
+  nodefactor.community.6 & 0.217 & 0.599 & $-$0.478 & 1.233$^{**}$ \\ 
+  nodefactor.community.8 &  & 2.284$^{***}$ &  &  \\ 
+  nodefactor.jours.2 & 0.571$^{**}$ & 1.213$^{**}$ &  & $-$0.238 \\ 
+  nodefactor.jours.3 & 0.345 & 1.102$^{**}$ & 0.498$^{*}$ & 0.038 \\ 
+  nodefactor.jours.4 & 0.504$^{**}$ & 1.341$^{**}$ & 0.519 & $-$0.432 \\ 
+  nodefactor.jours.5 & 0.727$^{***}$ & 1.327$^{**}$ & 0.708 & 0.448 \\ 
+  nodefactor.jours.6 & 0.812$^{***}$ & 1.698$^{**}$ & 1.697$^{**}$ & 0.875 \\ 
+  nodefactor.jours.7 & 0.831$^{***}$ & 1.577$^{***}$ & 1.880$^{***}$ & 0.663 \\ 
+  nodefactor.jours.8 & 0.746$^{***}$ & 1.631$^{***}$ & $-$0.038 & 2.639$^{***}$ \\ 
+  nodefactor.free\_time.2 & $-$0.056 & $-$0.287 & $-$0.045 & $-$0.846$^{*}$ \\ 
+  nodefactor.free\_time.3 & $-$0.133 & $-$0.128 & $-$0.556$^{*}$ & $-$0.114 \\ 
+ \hline \\[-1.8ex] 
+Akaike Inf. Crit. & 2,546.378 & 848.515 & 722.479 & 601.412 \\ 
+Bayesian Inf. Crit. & 2,749.304 & 1,011.023 & 861.113 & 738.618 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{4}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table}
+
+
+
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lcccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{4}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-5} 
+\\[-1.8ex] & \multicolumn{4}{c}{Matrix $F$} \\ 
+\\[-1.8ex] & City 1 & City 2 & City 3 & City 4\\ 
+\hline \\[-1.8ex] 
+ edges & $-$5.799$^{***}$ & $-$4.505$^{***}$ & $-$4.712$^{***}$ & $-$3.929$^{***}$ \\ 
+  mutual & 3.319$^{***}$ & 2.145$^{***}$ & 2.974$^{***}$ & 1.914$^{***}$ \\ 
+  nodematch.med\_sch\_yr & 0.768$^{***}$ & 0.449$^{**}$ & 0.320 & 0.395 \\ 
+  nodematch.proximity & 0.170 & 0.327 & 0.281 & 0.120 \\ 
+  nodematch.specialty & 0.233$^{*}$ & 0.230 & $-$0.089 & 0.218 \\ 
+  nodefactor.med\_sch\_yr.2 & 0.052 & $-$0.037 & 0.568 & $-$0.520 \\ 
+  nodefactor.med\_sch\_yr.3 & $-$0.183 & $-$0.064 & 0.016 & $-$0.448 \\ 
+  nodefactor.med\_sch\_yr.4 & $-$0.196 & 0.411 & $-$0.079 & $-$0.232 \\ 
+  nodefactor.med\_sch\_yr.5 & $-$0.219 & $-$0.018 & $-$0.034 & 0.238 \\ 
+  nodefactor.med\_sch\_yr.6 & $-$0.304 & 0.315 & 0.328 & $-$0.637 \\ 
+  nodefactor.friends.2 & 0.090 & 0.264 & 0.209 & $-$0.036 \\ 
+  nodefactor.friends.3 & 0.231 & $-$0.498 & 0.048 & 0.034 \\ 
+  nodefactor.friends.4 & 0.315$^{*}$ & 0.746 &  & 0.624 \\ 
+  nodefactor.community.2 & 0.336 & 0.199 & 0.139 & 2.074$^{**}$ \\ 
+  nodefactor.community.3 & 0.210 & 0.096 & 0.580 & 1.608$^{**}$ \\ 
+  nodefactor.community.4 & 0.248 & 0.478 & 0.696$^{*}$ & 1.323$^{**}$ \\ 
+  nodefactor.community.5 & 0.241 & 0.343 & 0.373 & 1.401$^{*}$ \\ 
+  nodefactor.community.6 & $-$0.077 & 0.617 & 0.177 & 0.806 \\ 
+  nodefactor.community.8 &  & 0.893$^{*}$ &  &  \\ 
+  nodefactor.jours.2 & 0.431$^{*}$ & $-$0.422 &  & $-$1.026 \\ 
+  nodefactor.jours.3 & 0.376 & $-$0.166 & $-$0.094 & $-$0.797 \\ 
+  nodefactor.jours.4 & 0.419$^{*}$ & $-$0.017 & $-$0.063 & $-$0.996$^{*}$ \\ 
+  nodefactor.jours.5 & 0.514$^{**}$ & 0.029 & 0.198 & $-$0.198 \\ 
+  nodefactor.jours.6 & 0.518$^{**}$ & $-$0.903 & 0.153 & $-$0.446 \\ 
+  nodefactor.jours.7 & 0.799$^{***}$ & 0.152 & 0.682 & $-$0.487 \\ 
+  nodefactor.jours.8 & 0.455$^{*}$ & 0.038 & $-$0.467 & $-$0.219 \\ 
+  nodefactor.free\_time.2 & 0.050 & $-$0.163 & 0.070 & 0.419 \\ 
+  nodefactor.free\_time.3 & 0.085 & 0.155 & 0.049 & $-$0.419 \\ 
+ \hline \\[-1.8ex] 
+Akaike Inf. Crit. & 2,130.152 & 869.617 & 635.119 & 600.555 \\ 
+Bayesian Inf. Crit. & 2,333.078 & 1,032.125 & 773.754 & 737.761 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{4}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+
+
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{3}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-4} 
+\\[-1.8ex] & \multicolumn{3}{c}{Adoption} \\ 
+\\[-1.8ex] & $A$ & $D$ & $F$\\ 
+\hline \\[-1.8ex] 
+ factor(city)2 & 1.135$^{**}$ & 0.789$^{*}$ & 0.898$^{**}$ \\ 
+  factor(city)3 & $-$1.435$^{**}$ & $-$0.756 & $-$0.470 \\ 
+  factor(city)4 & 0.358 & $-$0.201 & $-$0.369 \\ 
+  factor(med\_sch\_yr)2 & 1.646$^{**}$ & 2.212$^{***}$ & 0.906 \\ 
+  factor(med\_sch\_yr)3 & 1.700 & 3.059$^{***}$ & 1.935$^{*}$ \\ 
+  factor(med\_sch\_yr)4 & 0.972 & 1.911$^{*}$ & 1.316 \\ 
+  factor(med\_sch\_yr)5 & 1.777 & 2.552$^{**}$ & 1.896$^{*}$ \\ 
+  factor(med\_sch\_yr)6 & 0.969 & 1.975$^{*}$ & 1.343 \\ 
+
+  factor(community)2 & 1.875$^{**}$ & 1.179 & 1.537 \\ 
+  factor(community)3 & 0.253 & 0.180 & $-$0.474 \\ 
+  factor(community)4 & 0.651 & 0.830 & 0.571 \\ 
+  factor(community)5 & 1.610$^{*}$ & 0.689 & 0.686 \\ 
+  factor(community)6 & 1.235 & 1.347 & 1.374 \\ 
+  factor(specialty)2 & $-$0.091 & $-$0.451 & $-$0.118 \\ 
+  factor(specialty)3 & $-$0.801 & $-$0.724 & $-$0.389 \\ 
+  factor(specialty)4 & $-$0.181 & $-$0.894 & $-$1.822$^{*}$ \\ 
+  log(jours + 1) & 0.515 & 0.713 & 0.959$^{*}$ \\ 
+  factor(clubs)1 & 1.478$^{**}$ & 1.761$^{***}$ & 1.859$^{***}$ \\ 
+  factor(patients)2 & 1.804$^{*}$ & 1.817$^{**}$ & 1.385 \\ 
+  factor(patients)3 & 1.284 & 0.759 & 0.831 \\ 
+  factor(patients)4 & 1.178 & 1.173 & 1.366$^{*}$ \\ 
+  factor(patients)5 & 0.036 & 0.065 & 0.475 \\ 
+  factor(patients)6 & 0.519 & 0.164 & 0.690 \\ 
+ \textbf{contagion} & 6.710$^{***}$ & 6.582$^{***}$ & 5.508$^{***}$ \\ 
+  Constant & $-$6.560$^{***}$ & $-$7.419$^{***}$ & $-$6.414$^{***}$ \\ 
+ \hline \\[-1.8ex] 
+Observations & 686 & 733 & 651 \\ 
+Log Likelihood & $-$212.430 & $-$221.654 & $-$211.296 \\ 
+Akaike Inf. Crit. & 492.860 & 511.307 & 490.591 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{3}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{3}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-4} 
+\\[-1.8ex] & \multicolumn{3}{c}{Adoption} \\ 
+\\[-1.8ex] & $A$ & $D$ & $F$\\ 
+\hline \\[-1.8ex] 
+ factor(city)2 & 1.215$^{**}$ & 0.790$^{*}$ & 0.905$^{**}$ \\ 
+  factor(city)3 & $-$1.023 & $-$0.727 & $-$0.408 \\ 
+  factor(city)4 & 0.446 & $-$0.182 & $-$0.499 \\ 
+  factor(med\_sch\_yr)2 & 1.845$^{**}$ & 2.206$^{***}$ & 0.960 \\ 
+  factor(med\_sch\_yr)3 & 1.607 & 3.064$^{***}$ & 2.421$^{**}$ \\ 
+  factor(med\_sch\_yr)4 & 0.959 & 1.990$^{*}$ & 2.430$^{**}$ \\ 
+  factor(med\_sch\_yr)5 & 1.838 & 2.593$^{**}$ & 3.001$^{**}$ \\ 
+  factor(med\_sch\_yr)6 & 1.154 & 1.966$^{*}$ & 2.399$^{*}$ \\ 
+  factor(community)2 & 1.610$^{*}$ & 1.293 & 1.681 \\ 
+  factor(community)3 & 0.452 & 0.276 & $-$0.600 \\ 
+  factor(community)4 & 0.547 & 0.906 & 0.604 \\ 
+  factor(community)5 & 1.623$^{*}$ & 0.761 & 0.805 \\ 
+  factor(community)6 & 1.355 & 1.455 & 2.604$^{*}$ \\ 
+  factor(specialty)2 & $-$0.277 & $-$0.420 & $-$0.030 \\ 
+  factor(specialty)3 & $-$0.946 & $-$0.743 & $-$0.420 \\ 
+  factor(specialty)4 & $-$0.242 & $-$0.730 & $-$1.810$^{*}$ \\ 
+  log(jours + 1) & 0.752 & 0.665 & 0.899$^{*}$ \\ 
+  factor(clubs)1 & 1.550$^{**}$ & 1.682$^{***}$ & 2.129$^{***}$ \\ 
+  factor(patients)2 & 1.709$^{*}$ & 1.899$^{**}$ & 1.370 \\ 
+  factor(patients)3 & 1.356$^{*}$ & 0.850 & 0.864 \\ 
+  factor(patients)4 & 1.167 & 1.258 & 1.386$^{*}$ \\ 
+  factor(patients)5 & 0.067 & 0.165 & 0.558 \\ 
+  factor(patients)6 & 0.422 & 0.293 & 0.642 \\ 
+ \textbf{contagion} & 6.909$^{***}$ & 6.588$^{***}$ & 5.835$^{***}$ \\ 
+  z1 & $-$0.151 & 0.048 & 0.178 \\ 
+  z2 & $-$0.159 & 0.067 & 0.213 \\ 
+  Constant & $-$7.054$^{***}$ & $-$7.561$^{***}$ & $-$7.564$^{***}$ \\ 
+ \hline \\[-1.8ex] 
+Observations & 686 & 733 & 651 \\ 
+Log Likelihood & $-$211.390 & $-$221.530 & $-$208.855 \\ 
+Akaike Inf. Crit. & 494.781 & 515.061 & 489.710 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{3}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+
+
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lcc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{2}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-3} 
+\\[-1.8ex] & \multicolumn{2}{c}{Adoption} \\ 
+\\[-1.8ex] & Without Latent Coordinates & With Latent Coordinates\\ 
+\hline \\[-1.8ex] 
+ factor(city)2 & 1.497$^{***}$ & 1.475$^{**}$ \\ 
+  factor(city)3 & $-$1.608$^{**}$ & $-$1.126 \\ 
+  factor(city)4 & 0.268 & $-$0.206 \\ 
+  factor(med\_sch\_yr)2 & 0.631 & 0.206 \\ 
+  factor(med\_sch\_yr)3 & 2.311$^{*}$ & 3.737$^{**}$ \\ 
+  factor(med\_sch\_yr)4 & 1.930 & 4.856$^{**}$ \\ 
+  factor(med\_sch\_yr)5 & 3.478$^{**}$ & 6.213$^{***}$ \\ 
+  factor(med\_sch\_yr)6 & 2.563 & 4.895$^{**}$ \\ 
+  factor(community)2 & 2.399$^{*}$ & 3.463$^{**}$ \\ 
+  factor(community)3 & $-$1.073 & $-$0.290 \\ 
+  factor(community)4 & 0.521 & 0.659 \\ 
+  factor(community)5 & 1.386 & 1.569 \\ 
+  factor(community)6 & 2.513 & 5.902$^{***}$ \\ 
+  factor(specialty)2 & $-$0.523 & $-$0.778 \\ 
+  factor(specialty)3 & $-$1.649$^{**}$ & $-$1.556$^{*}$ \\ 
+  factor(specialty)4 & $-$0.772 & $-$0.926 \\ 
+  log(jours + 1) & 1.210$^{*}$ & 1.512$^{**}$ \\ 
+  factor(clubs)1 & 2.570$^{***}$ & 3.103$^{***}$ \\ 
+  \textbf{contagion.adviser} & 10.743$^{***}$ & 13.044$^{***}$ \\ 
+  \textbf{contagion.discussion} & $-$2.819 & $-$3.686 \\ 
+  \textbf{contagion.friend} & 3.536 & 3.525 \\ 
+  z1.a &  & 0.024 \\ 
+  z2.a &  & $-$0.372$^{*}$ \\ 
+  z1.d &  & $-$0.168 \\ 
+  z2.d &  & 0.270 \\ 
+  z1.f &  & 0.397 \\ 
+  z2.f &  & 0.344 \\ 
+  Constant & $-$8.467$^{***}$ & $-$12.609$^{***}$ \\ 
+ \hline \\[-1.8ex] 
+Observations & 561 & 561 \\ 
+Log Likelihood & $-$161.383 & $-$155.883 \\ 
+Akaike Inf. Crit. & 394.766 & 395.766 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{2}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+\begin{table}[!htbp] \centering 
+  \caption{Simulation Result: Bias Amplification-1} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{3}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-4} 
+\\[-1.8ex] & \multicolumn{3}{c}{event} \\ 
+\\[-1.8ex] & True Model & Not Adjust for Z & Adjust for Z\\ 
+\hline \\[-1.8ex] 
+ x1 & 2.151$^{***}$ & 1.717$^{***}$ & 1.665$^{***}$ \\ 
+  & & & \\ 
+ x2 & 2.350$^{***}$ & 0.976$^{***}$ & 1.135$^{***}$ \\ 
+  & & & \\ 
+ z1 & 0.009 &  & 0.033$^{**}$ \\ 
+  & & & \\ 
+ u & 1.769$^{***}$ &  &  \\ 
+  & & & \\ 
+ \textbf{contagion} &  & 1.631$^{***}$ & 1.862$^{***}$ \\ 
+  & & & \\ 
+ Constant & $-$9.029$^{***}$ & $-$5.958$^{***}$ & $-$6.300$^{***}$ \\ 
+  & & & \\ 
+\hline \\[-1.8ex] 
+Observations & 535 & 470 & 470 \\ 
+Log Likelihood & $-$60.431 & $-$71.571 & $-$66.891 \\ 
+Akaike Inf. Crit. & 130.862 & 151.143 & 143.782 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{3}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+\begin{table}[!htbp] \centering 
+  \caption{Simulation Result: Bias Amplification-2} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{3}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-4} 
+\\[-1.8ex] & \multicolumn{3}{c}{event} \\ 
+\\[-1.8ex] & True Model & Not Adjust for Z & Adjust for Z\\ 
+\hline \\[-1.8ex] 
+ x1 & 1.016$^{***}$ & 0.253$^{***}$ & 0.681$^{***}$ \\ 
+  & & & \\ 
+ x2 & 2.015$^{***}$ & $-$0.107$^{**}$ & 0.815$^{***}$ \\ 
+  & & & \\ 
+ z1 & 2.136$^{***}$ &  & 1.700$^{***}$ \\ 
+  & & & \\ 
+ u & 2.559$^{***}$ &  &  \\ 
+  & & & \\ 
+\textbf{contagion} &  & 1.388$^{***}$ & 2.254$^{**}$ \\ 
+  & & & \\ 
+ Constant & $-$13.445$^{***}$ & $-$1.082$^{***}$ & $-$6.824$^{***}$ \\ 
+  & & & \\ 
+\hline \\[-1.8ex] 
+Observations & 535 & 470 & 470 \\ 
+Log Likelihood & $-$36.269 & $-$298.783 & $-$47.646 \\ 
+Akaike Inf. Crit. & 82.539 & 605.566 & 105.292 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{3}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+
+
+
+
+
+
+% Date and time: Sat, May 09, 2015 - 10:16:17 PM
+\begin{table}[!htbp] \centering 
+  \caption{Simulation Result: Bias Reduction} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{3}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-4} 
+\\[-1.8ex] & \multicolumn{3}{c}{event} \\ 
+\\[-1.8ex] & True Model & Not Adjust for Z & Adjust for Z\\ 
+\hline \\[-1.8ex] 
+ x1 & 2.970$^{***}$ & 0.584$^{***}$ & 1.543$^{***}$ \\ 
+  & & & \\ 
+ x2 & 2.862$^{***}$ & 0.066 & 1.571$^{***}$ \\ 
+  & & & \\ 
+ z1 & 1.629$^{***}$ &  & 0.782$^{***}$ \\ 
+  & & & \\ 
+ u & 2.960$^{***}$ &  &  \\ 
+  & & & \\ 
+ \textbf{contagion} &  & 1.054$^{***}$ & $-$0.084 \\ 
+  & & & \\ 
+ Constant & $-$12.497$^{***}$ & $-$1.792$^{***}$ & $-$7.908$^{***}$ \\ 
+  & & & \\ 
+\hline \\[-1.8ex] 
+Observations & 535 & 470 & 470 \\ 
+Log Likelihood & $-$25.430 & $-$233.400 & $-$53.672 \\ 
+Akaike Inf. Crit. & 60.861 & 474.799 & 117.344 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{3}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+\clearpage
+\newpage
+\section*{APPENDIX	}
+Codebook:\\
+
+City: 1	Peoria,	2 Bloomington, 3 Quincy, 4 Galesburg\\
+
+Adoption Date:
+1 November, 1953 
+2 December, 1953 
+3 January, 1954 
+4 February, 1954 
+5 March, 1954 
+6 April, 1954 
+7 May, 1954 
+8 June, 1954 
+9 July, 1954 
+10 August, 1954 
+11 September, 1954 
+12 October, 1954 
+13 November, 1954 
+14 December, 1954 
+15 December/January, 1954/1955 
+16 January/February, 1955 
+17 February, 1955 
+18 no prescriptions found 
+98 no prescription data obtained\\
+
+Year started in the profession
+1	1919 or before 
+2 1920-1929 
+3	1930-1934 
+4	1935-1939 
+5	1940-1944 
+6	1945 or later 
+9	no answer\\
+
+Have you attended any national, regional or state conventions of professional societies during the last 12 months? [if yes] Which ones? 
+0 none 
+1 only general meetings 
+2 specialty meetings 
+9 no answer\\
+
+Which medical journals do you receive regularly? 
+1 two 
+2 three 
+3 four 
+4 five 
+5 six 
+6 seven 
+7 eight 
+8 nine or more
+9 no answer\\
+
+With whom do you actually spend more of your free time -- doctors or non-doctors? 
+1 non-doctors 
+2 about evenly split between them 
+3 doctors 
+9 mssing; no answer, don't know\\
+
+When you are with other doctors socially, do you like to talk about medical matter? 
+1 no 
+2 yes 
+3 don't care 
+9 missing; no answer, don't know\\
+
+Do you belong to any club or hobby composed mostly of doctors? 
+0 no 
+1 yes 
+9 no answer\\
+
+Would you tell me who are your three friends whom you see most often socially? What is [their] occupation?
+1 none are doctors 
+2 one is a doctor 
+3 two are doctors 
+4 three are doctors 
+9 no answer\\
+
+How long have you been practicing in this community? 
+1 a year or less 
+2 more than a year, up to two years 
+3 more than two years, up to five years 
+4 more than five years, up to ten years 
+5 more than ten years, up to twenty years 
+6 more than twenty years 
+9 no answer\\
+
+About how many office visits would you say you have during the average week at this time of year?
+1 25 or less 
+2 26-50 
+3 51-75 
+4 76-100 
+5 101-150 
+6 151 or more
+9 missing; no answer, don't know\\
+
+Are there other physicians in this building? [if yes] Other physicians in same office or with same waiting room? 
+1 none in building 
+2 some in building, but none share his office or waiting room 
+3 some in building sharing his office or waiting room 
+4 some in building perhaps sharing his office or waiting room 
+9 no answer\\
+
+Do you specialize in any particular field of medicine? [if yes] What is it? 
+1 GP, general practitioner 
+2 internist 
+3 pediatrician 
+4 other specialty 
+9 no answer\\
+
+
+
+
+\end{document}
+
+%pdflatex latent
